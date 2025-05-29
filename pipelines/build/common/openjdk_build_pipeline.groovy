@@ -406,31 +406,35 @@ class Build {
     */
     private String allocateEBCnodesForTest(testType) {
         def platform = buildConfig.TARGET_OS + '_' + buildConfig.ARCHITECTURE
-        // All targets are not supported via EBC yet. We need to test that target and add to default.json later on to make it enable
+        def ebc_node_type = 'testmachine'
+        def group_label_UUID = 'semeru_aqatest_machine_' + UUID.randomUUID().toString()
+        def num_machines = '1' // TODO: use estimated time from AQA-test instead see: https://github.ibm.com/runtimes/automation/issues/393#issue-49600865
+        def EBC_ENV = 'prod'
+        def TIME_LIMIT = '3' //TODO: use estimated time via default.json instead
 
+        // All targets are not supported via EBC yet. We need to test that target and add to default.json later on to make it enable
         if ( ! DEFAULTS_JSON['testDetails']['ebcEnabledTargets'][platform].find { it == testType } ) {
             context.println "EBC does not support for $platform->$testType yet!"
             return ''
         }
 
-        context.println "Allocating EBC node for $platform->$testType"
+        context.println "[INFO] Allocating EBC node for $platform->$testType"
 
-        def group_label_UUID = 'semeru_aqatest_machine_' + UUID.randomUUID().toString()
-        def num_machines = '1'
         def test_index = DEFAULTS_JSON['testDetails']['defaultDynamicParas']['testLists'].indexOf(testType)
         if (test_index != -1){ 
             num_machines = DEFAULTS_JSON['testDetails']['defaultDynamicParas']['numMachines'].get(test_index)
         }
 
-        context.build job: '/EBC_Create_Node',
+        context.build job: 'EBC/EBC_Create_Node',
             propagate: false,
             wait: true,
             parameters: [
                     context.string(name: 'group_label', value: group_label_UUID),
                     context.string(name: 'platform', value: platform),
-                    context.string(name: 'nodeType', value: 'AQA_test_node'),
-                    context.string(name: 'NUM_MACHINES', value: num_machines),
-                    context.string(name: 'TIME_LIMIT', value: '3') //TODO: use estimated time via default.json instead
+                    context.string(name: 'nodeType', value: ebc_node_type),
+                    context.string(name: 'NUM_MACHINES', value: num_machines), 
+                    context.string(name: 'TIME_LIMIT', value: TIME_LIMIT), 
+                    context.string(name: 'EBC_ENV', value: EBC_ENV),
             ]
         return group_label_UUID
     }
