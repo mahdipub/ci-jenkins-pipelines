@@ -76,6 +76,7 @@ class Build {
     String artifactoryCredential = ''
     String artifactoryBaseUrl = ''
     Map variantVersion = [:]
+    String local_ebcGroupLabel_prefix = ''
 
     // Declare timeouts for each critical stage (unit is HOURS)
     Map buildTimeouts = [
@@ -399,44 +400,62 @@ class Build {
     }
 
     /*
-    This function taking care of node allocation via EBC calls for AQA tests. It depends on configs under 
+    These functions taking care of node allocation via EBC calls for AQA tests. It depends on configs under 
     DEFAULTS_JSON['testDetails']['ebcEnabledTargets'] to decide if it can allocate using EBC.
-    When all targets are enabled we can remove this config from default along with check from this function.
-    It accepts testType which is one of test targets in AQA e.g. sanity.perf 
     */
-    private String allocateEBCnodesForTest(testType) {
-        def platform = buildConfig.TARGET_OS + '_' + buildConfig.ARCHITECTURE
-        def ebc_node_type = 'testmachine'
-        def group_label_UUID = 'semeru_aqatest_machine_' + UUID.randomUUID().toString()
-        def num_machines = '1' // TODO: use estimated time from AQA-test instead see: https://github.ibm.com/runtimes/automation/issues/393#issue-49600865
-        def EBC_ENV = 'prod'
-        def TIME_LIMIT = '3' //TODO: use estimated time via default.json instead
+    private allocateEBCnodesForTest(ebcGroupLabel_prefix) {
+        local_ebcGroupLabel_prefix = ebcGroupLabel_prefix
+        List testList = buildConfig.TEST_LIST
+        testList.each { testType ->
+            def platform = buildConfig.TARGET_OS + '_' + buildConfig.ARCHITECTURE
+            def ebc_node_type = 'testmachine'
+            def EBC_ENV = 'prod'
+            def TIME_LIMIT = '6' //TODO: use estimated time via default.json instead
 
-        // All targets are not supported via EBC yet. We need to test that target and add to default.json later on to make it enable
-        if ( ! DEFAULTS_JSON['testDetails']['ebcEnabledTargets'][platform].find { it == testType } ) {
-            context.println "EBC does not support for $platform->$testType yet!"
-            return ''
+            // All targets are not supported via EBC yet. We need to test that target and add to default.json later on to make it enable
+            if ( ! DEFAULTS_JSON['testDetails']['ebcEnabledTargets'][platform].find { it == testType } ) {
+                context.println "EBC does not support for $platform->$testType yet!"
+                return ''
+            }
+
+            context.println "[INFO] Allocating EBC node for $platform->$testType"
+
+            context.build job: 'EBC/EBC_Create_Node',
+                propagate: false,
+                wait: false,
+                parameters: [
+                        context.string(name: 'group_label', value: geEBC_Label(testType)),
+                        context.string(name: 'platform', value: platform),
+                        context.string(name: 'nodeType', value: ebc_node_type),
+                        context.string(name: 'NUM_MACHINES', value: getNumberOfEBC_nodes(testType)), 
+                        context.string(name: 'TIME_LIMIT', value: TIME_LIMIT), 
+                        context.string(name: 'EBC_ENV', value: EBC_ENV),
+                ]
         }
+    }
 
-        context.println "[INFO] Allocating EBC node for $platform->$testType"
+    private String geEBC_Label(testType) {
+        return local_ebcGroupLabel_prefix + "_" + testType
+    }
 
+    private String getNumberOfEBC_nodes(testType) {
         def test_index = DEFAULTS_JSON['testDetails']['defaultDynamicParas']['testLists'].indexOf(testType)
+        def num_machines = '1' // TODO: use estimated from AQA-test instead see: https://github.ibm.com/runtimes/automation/issues/393#issue-49600865
         if (test_index != -1){ 
             num_machines = DEFAULTS_JSON['testDetails']['defaultDynamicParas']['numMachines'].get(test_index)
         }
+        return num_machines
+    }
 
-        context.build job: 'EBC/EBC_Create_Node',
-            propagate: false,
-            wait: true,
-            parameters: [
-                    context.string(name: 'group_label', value: group_label_UUID),
-                    context.string(name: 'platform', value: platform),
-                    context.string(name: 'nodeType', value: ebc_node_type),
-                    context.string(name: 'NUM_MACHINES', value: num_machines), 
-                    context.string(name: 'TIME_LIMIT', value: TIME_LIMIT), 
-                    context.string(name: 'EBC_ENV', value: EBC_ENV),
-            ]
-        return group_label_UUID
+    private String freeEBCnodes(testType) {
+        def testTypeGroupLabel = geEBC_Label(testType)
+        context.println "[INFO] Freeing EBC node for $testTypeGroupLabel"
+        context.build job: 'EBC/freeEBCnodes',
+        propagate: false,
+        wait: false,
+        parameters: [
+            context.string(name: 'LABEL', value: testTypeGroupLabel),
+        ]
     }
 
     /*
@@ -664,7 +683,7 @@ class Build {
                         context.string(name: 'RERUN_ITERATIONS', value: "${rerunIterations}"),
                         context.string(name: 'RELATED_NODES', value: relatedNodeLabel), 
                         context.string(name: 'ADDITIONAL_ARTIFACTS_REQUIRED', value: additionalArtifactsRequired),
-                        context.string(name: 'LABEL', value: allocateEBCnodesForTest(testType))
+                        context.string(name: 'LABEL', value: geEBC_Label(testType))
                         ]
 
                         // If TIME_LIMIT is set, override target job default TIME_LIMIT value.
@@ -699,6 +718,7 @@ class Build {
                                 context.echo "Cannot run copyArtifacts from job ${jobName}. Exception: ${e.message}. Skipping copyArtifacts..."
                             }
                             context.archiveArtifacts allowEmptyArchive: true, artifacts: 'workspace/target/AQAvitTaps/*.tap', fingerprint: true
+                            freeEBCnodes(testType) 
                         }
                     }
                 }
@@ -2460,6 +2480,9 @@ class Build {
                 // Get branch/tag of temurin-build, ci-jenkins-pipeline and jenkins-helper repo from BUILD_CONFIGURATION or defaultsJson
                 def helperRef = buildConfig.HELPER_REF ?: DEFAULTS_JSON['repository']['helper_ref']
                 def nonDockerNodeName = ''
+                def ebcGroupLabel_prefix = 'semeru_EBC_machine_' + UUID.randomUUID().toString()
+
+                allocateEBCnodesForTest(ebcGroupLabel_prefix)
 
                 context.stage('queue') {
                     /* This loads the library containing two Helper classes, and causes them to be
