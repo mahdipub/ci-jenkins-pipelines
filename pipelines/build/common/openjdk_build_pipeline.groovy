@@ -405,34 +405,7 @@ class Build {
     It accepts testType which is one of test targets in AQA e.g. sanity.perf 
     */
     private String allocateEBCnodesForTest(testType) {
-        def platform = buildConfig.TARGET_OS + '_' + buildConfig.ARCHITECTURE
-        // All targets are not supported via EBC yet. We need to test that target and add to default.json later on to make it enable
-
-        if ( ! DEFAULTS_JSON['testDetails']['ebcEnabledTargets'][platform].find { it == testType } ) {
-            context.println "EBC does not support for $platform->$testType yet!"
-            return ''
-        }
-
-        context.println "Allocating EBC node for $platform->$testType"
-
-        def group_label_UUID = 'semeru_aqatest_machine_' + UUID.randomUUID().toString()
-        def num_machines = '1'
-        def test_index = DEFAULTS_JSON['testDetails']['defaultDynamicParas']['testLists'].indexOf(testType)
-        if (test_index != -1){ 
-            num_machines = DEFAULTS_JSON['testDetails']['defaultDynamicParas']['numMachines'].get(test_index)
-        }
-
-        context.build job: '/EBC_Create_Node',
-            propagate: false,
-            wait: true,
-            parameters: [
-                    context.string(name: 'group_label', value: group_label_UUID),
-                    context.string(name: 'platform', value: platform),
-                    context.string(name: 'nodeType', value: 'AQA_test_node'),
-                    context.string(name: 'NUM_MACHINES', value: num_machines),
-                    context.string(name: 'TIME_LIMIT', value: '3') //TODO: use estimated time via default.json instead
-            ]
-        return group_label_UUID
+        return 'auto_374_tets_environment'
     }
 
     /*
