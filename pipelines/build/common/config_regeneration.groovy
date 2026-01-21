@@ -564,8 +564,11 @@ class Regeneration implements Serializable {
 
         // Execute job dsl, using adopt's template if the user doesn't have one
         def create = null
+        params.each { key, value  ->
+            context.println "${key}: ${value}"
+        }
         try {
-            create = context.jobDsl targets: jobTemplatePath, ignoreExisting: false, additionalParameters: params
+            create = context.jobDsl targets: jobTemplatePath, ignoreExisting: true, additionalParameters: params
         } catch (Exception e) {
             context.println "[WARNING] Something went wrong when creating the job dsl. It may be because we are trying to pull the template inside a user repository. Using Adopt's template instead. Error:\n${e}"
             repoHandler.checkoutAdoptPipelines(context)

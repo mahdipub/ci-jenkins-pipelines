@@ -2481,6 +2481,10 @@ class Build {
                 def helperRef = buildConfig.HELPER_REF ?: DEFAULTS_JSON['repository']['helper_ref']
                 def nonDockerNodeName = ''
                 context.stage('queue') {
+                    context.println("Mahdi-----  buildConfig.TEST_LIST.size(): ${buildConfig.TEST_LIST.size()} ------")
+                    context.println("Mahdi-----  enableTests: ${enableTests} ------")
+                    context.println("Mahdi-----  buildConfig: ${buildConfig} ------")
+                    error 'test end'
                     /* This loads the library containing two Helper classes, and causes them to be
                     imported/updated from their repo. Without the library being imported here, runTests method will fail to execute the post-build test jobs for reasons unknown.*/
                     context.library(identifier: "openjdk-jenkins-helper@${helperRef}")
@@ -2733,6 +2737,11 @@ class Build {
                 def smokeTestsResult = runSmokeTests()
 
                 runSecurityScan()
+
+
+                context.println("Mahdi-----  buildConfig.TEST_LIST.size(): ${buildConfig.TEST_LIST.size()} ------")
+                context.println("Mahdi-----  smokeTestsResult: ${smokeTestsResult} ------")
+                context.println("Mahdi-----  enableTests: ${enableTests} ------")
 
                 // Run Smoke Tests and AQA Tests
                 if (enableTests) {

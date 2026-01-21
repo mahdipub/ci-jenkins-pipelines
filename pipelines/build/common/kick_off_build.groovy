@@ -52,9 +52,12 @@ node('worker') {
     if (params.USER_REMOTE_CONFIGS) {
         userRemoteConfigs = new JsonSlurper().parseText(USER_REMOTE_CONFIGS) as Map
     }
+    println "Mahdi: BUILD_CONFIGURATION: ${BUILD_CONFIGURATION}"
     if (BUILD_CONFIGURATION) { // overwrite branch from USER_REMOTE_CONFIGS if the value is not empty or null
         buildConf = new JsonSlurper().parseText(BUILD_CONFIGURATION) as Map
         userRemoteConfigs['branch'] = buildConf.get('CI_REF') ?: userRemoteConfigs['branch']
+    
+        println "Mahdi: BUILD_CONFIGURATION.ENABLE_TESTS: ${buildConf.get('ENABLE_TESTS')}"
 
         // If using User scripts and USER_REMOTE_CONFIGS supplied ensure downstreamBuilder is loaded from the user repo
         def useAdoptShellScripts = Boolean.valueOf(buildConf.get('USE_ADOPT_SHELL_SCRIPTS'))
