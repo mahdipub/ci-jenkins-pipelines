@@ -1189,7 +1189,6 @@ class Build {
                         context.string(name: 'PRODUCT_CATEGORY', value: "${category}"),
                         context.string(name: 'JVM', value: "${INSTALLER_JVM}"),
                         context.string(name: 'ARCH', value: "${INSTALLER_ARCH}"),
-                        context.string(name: 'SIGNING_CERTIFICATE', value: ""), //will disable signing for windows to do it via linux nodes
                         ['$class': 'LabelParameterValue', name: 'NODE_LABEL', label: "${nodeFilter}"]
                 ]
         context.copyArtifacts(
@@ -1337,14 +1336,18 @@ class Build {
             )
 
         } else {
-            def installerJob = context.build job: 'build-scripts/release/sign_msi',
+            def installerJob = context.build job: 'build-scripts/release/sign_installer',
                     propagate: true,
                     parameters: [
                             context.string(name: 'UPSTREAM_JOB_NUMBER', value: "${env.BUILD_NUMBER}"),
-                            context.string(name: 'UPSTREAM_JOB_NAME', value: "${env.JOB_NAME}")
+                            context.string(name: 'UPSTREAM_JOB_NAME', value: "${env.JOB_NAME}"),
+                            context.string(name: 'FILTER', value: "${filter}"),
+                            context.string(name: 'FULL_VERSION', value: "${versionData.version}"),
+                            context.string(name: 'OPERATING_SYSTEM', value: "${buildConfig.TARGET_OS}"),
+                            context.string(name: 'MAJOR_VERSION', value: "${versionData.major}")
                     ]
             context.copyArtifacts(
-                    projectName: 'build-scripts/release/sign_msi',
+                    projectName: 'build-scripts/release/sign_installer',
                     selector: context.specific("${installerJob.getNumber()}"),
                     filter: 'workspace/target/*',
                     fingerprintArtifacts: true,
@@ -2697,7 +2700,7 @@ class Build {
                         // - Win msi & linux rpm are signed during the creation
                         // - Mac pkg is 3rd party signed atm.
                         // - Only sign AIX
-                        if ((buildConfig.VARIANT != "openj9") || ((buildConfig.VARIANT == "openj9") && (buildConfig.TARGET_OS in ["aix","windows"]))){
+                        if ((buildConfig.VARIANT != "openj9") || ((buildConfig.VARIANT == "openj9") && (buildConfig.TARGET_OS == "aix"))){
                             signInstaller(versionInfo)
                         }
                     } catch (FlowInterruptedException e) {
